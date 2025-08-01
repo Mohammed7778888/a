@@ -2,21 +2,18 @@ name: Update RSS Feed
 
 on:
   schedule:
-    - cron: '*/5 * * * *'  # Runs every 5 minutes
-  workflow_dispatch:        # Allows manual trigger from GitHub UI
+    - cron: '*/5 * * * *'  # Every 5 minutes
+  workflow_dispatch:      # Manual trigger
 
 jobs:
-  build:
+  update-rss:
     runs-on: ubuntu-latest
 
     steps:
     - name: Checkout repository
       uses: actions/checkout@v3
 
-    - name: List repo files for debugging
-      run: ls -la
-
-    - name: Set up Python
+    - name: Set up Python 3.x
       uses: actions/setup-python@v4
       with:
         python-version: "3.x"
