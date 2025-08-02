@@ -2,15 +2,22 @@ import requests
 from bs4 import BeautifulSoup
 from datetime import datetime
 import time
-from colorama import init, Fore
+import subprocess
+import sys
 
-# Initialize colorama
-init(autoreset=True)
-
-# === Config ===
 BASE_URL = "https://3asq.org"
 SOURCE_URL = f"{BASE_URL}/manga/one-piece/"
 OUTPUT_FILE = "rss.xml"
+CHECK_INTERVAL = 120  # seconds
+
+# ANSI color codes for terminal output
+GREEN = "\033[92m"
+YELLOW = "\033[93m"
+RED = "\033[91m"
+RESET = "\033[0m"
+
+def print_colored(text, color):
+    print(f"{color}{text}{RESET}")
 
 def fetch_latest_chapter():
     res = requests.get(SOURCE_URL)
@@ -49,30 +56,56 @@ def generate_rss(latest_url):
 '''
     with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
         f.write(rss)
-    print(f"✅ RSS feed generated at {OUTPUT_FILE}")
 
-def main_loop(interval_minutes=2):
+def get_current_branch():
+    result = subprocess.run(["git", "rev-parse", "--abbrev-ref", "HEAD"], capture_output=True, text=True)
+    if result.returncode != 0:
+        raise Exception("Failed to get current git branch: " + result.stderr.strip())
+    return result.stdout.strip()
+
+def git_push():
+    branch = get_current_branch()
+    # Stage the changes
+    subprocess.run(["git", "add", OUTPUT_FILE], check=True)
+
+    # Check if there are changes to commit
+    result = subprocess.run(["git", "diff", "--cached", "--quiet"])
+    if result.returncode == 0:
+        print_colored("🟡 No updates detected, skipping git push.", YELLOW)
+        return False
+
+    # Commit changes
+    commit_msg = "Update RSS feed"
+    subprocess.run(["git", "commit", "-m", commit_msg], check=True)
+
+    # Push to the current branch
+    subprocess.run(["git", "push", "origin", branch], check=True)
+    return True
+
+def main():
     last_url = None
-    print("Starting RSS monitor. Press Ctrl+C to stop.")
-    try:
-        while True:
-            print("\n🔄 Checking for new chapter...")
-            try:
-                latest_url = fetch_latest_chapter()
-                if latest_url != last_url:
-                    print(Fore.GREEN + f"✅ New URL found: {latest_url}")
-                    generate_rss(latest_url)
-                    last_url = latest_url
+    while True:
+        now = datetime.now().strftime("%H:%M:%S")
+        try:
+            print(f"🔍 Checking for updates at {now}...")
+            latest_url = fetch_latest_chapter()
+
+            if latest_url != last_url:
+                generate_rss(latest_url)
+                pushed = git_push()
+                if pushed:
+                    print_colored(f"✅ New chapter found and pushed: {latest_url}", GREEN)
                 else:
-                    print(f"No new URL found. Last URL is still: {last_url}")
-            except Exception as e:
-                print(Fore.RED + f"❌ Error fetching chapter: {e}")
+                    print_colored(f"✅ New chapter found but no push needed: {latest_url}", GREEN)
+                last_url = latest_url
+            else:
+                print_colored("🟡 No new chapter found.", YELLOW)
 
-            print(f"⏳ Waiting {interval_minutes} minutes before next check...")
-            time.sleep(interval_minutes * 60)
+        except Exception as e:
+            print_colored(f"❌ Error: {e}", RED)
 
-    except KeyboardInterrupt:
-        print("\n⛔ Stopped by user.")
+        print(f"⏳ Waiting {CHECK_INTERVAL//60} minutes before next check...\n")
+        time.sleep(CHECK_INTERVAL)
 
 if __name__ == "__main__":
-    main_loop()
+    main()
