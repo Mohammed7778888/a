@@ -2,8 +2,8 @@ name: Update RSS Feed
 
 on:
   schedule:
-    - cron: '*/5 * * * *'   # every 5 minutes
-  workflow_dispatch:
+    - cron: '*/5 * * * *'  # Every 5 minutes (adjust as needed)
+  workflow_dispatch:       # Manual trigger
 
 jobs:
   update-rss:
@@ -15,7 +15,7 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
-        python-version: '3.x'
+        python-version: "3.x"
 
     - name: Install dependencies
       run: pip install requests beautifulsoup4
@@ -25,10 +25,11 @@ jobs:
 
     - name: Commit and push changes
       uses: stefanzweifel/git-auto-commit-action@v4
+      env:
+        GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}   # Use your PAT here
       with:
         commit_message: Update RSS feed
         commit_user_name: github-actions
         commit_user_email: github-actions@github.com
         branch: main
-      env:
-        GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+        file_pattern: rss.xml                     # Only commit rss.xml
